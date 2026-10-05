@@ -1,0 +1,511 @@
+/* ============================================================
+   BTS Solar dashboard styles — copied 1:1 from the original
+   style.css (sidebar/overlay rules removed). Everything is
+   scoped under .solar-page so it never clashes with Tailwind.
+   ============================================================ */
+.solar-page,
+.solar-page * {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: "Open Sans", "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.solar-page {
+  --grey2: linear-gradient(145deg, #1a2a3d, #152232);
+  --grey: #0f1c2d;
+  --grey3: #0f1c2dfa;
+  --dark-grey: #8d8d8d;
+  --light: #fff;
+  --dark: #000;
+  --dark-blue: #0c5fcd;
+  --yellow: #fe9b13;
+  --green: #4ecdc4;
+  --blue: #3867d6;
+  --red: #fc5c65;
+  --orange: #ff9800;
+  --primary-color: #4ecdc4;
+  --accent-color: #ffc107;
+  --dark-bg: #121e27;
+  --card-bg: #1e2b38;
+  --text-color: #f0f0f0;
+  --text-secondary: #b0b0b0;
+  --danger-color: #f44336;
+  --success-color: #4caf50;
+  --warning-color: #ff9800;
+  --info-color: #2196f3;
+  --battery-color: #00f293;
+
+  /* original body: var(--grey3) over the default white page */
+  background: #142131;
+  color: var(--light);
+  min-height: 100vh;
+  display: flex;
+}
+
+.solar-page a {
+  text-decoration: none;
+}
+
+/* ===== MAIN CONTENT AREA ===== */
+.solar-page #content {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+/* glassy navigation */
+.solar-page nav {
+  background: var(--grey);
+  backdrop-filter: blur(18px) saturate(180%);
+  -webkit-backdrop-filter: blur(18px);
+  padding: 0 32px;
+  height: 80px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid rgba(78, 205, 196, 0.2);
+  position: sticky;
+  top: 0;
+  z-index: 99;
+}
+
+.solar-page .nav-left {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.solar-page .breadcumb .title {
+  font-size: 2rem;
+  font-weight: 600;
+  color: white;
+  letter-spacing: -0.5px;
+}
+
+.solar-page .profile-box {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  background: rgba(255, 255, 255, 0.03);
+  padding: 8px 18px 8px 24px;
+  border-radius: 12px;
+  border: 1px solid rgba(78, 205, 196, 0.2);
+}
+
+.solar-page .profile-user {
+  color: #f7b731;
+  font-weight: 500;
+  font-size: 0.95rem;
+}
+.solar-page .profile-user span {
+  color: #acccf0;
+}
+
+.solar-page .divider {
+  width: 1px;
+  height: 24px;
+  background: #2d4b63;
+}
+
+.solar-page .profile {
+  width: 44px;
+  height: 44px;
+  border-radius: 40px;
+  overflow: hidden;
+}
+.solar-page .profile img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.solar-page .logOut-btn {
+  background: #fc5c65;
+  border: 1px solid #fc5c65;
+  color: #0d1f2c;
+  padding: 8px 22px;
+  border-radius: 34px;
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: 0.2s;
+}
+.solar-page .logOut-btn:hover {
+  background: #fc5c65;
+  color: white;
+}
+
+/* back button (new: replaces the sidebar navigation) */
+.solar-page .back-btn {
+  background: transparent;
+  border: 1px solid #4ecdc4;
+  color: #4ecdc4;
+  padding: 8px 18px;
+  border-radius: 34px;
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: 0.2s;
+  white-space: nowrap;
+}
+.solar-page .back-btn:hover {
+  background: #4ecdc4;
+  color: #0d1f2c;
+}
+
+/* sync / online line (replaces the sidebar "Synced" box) */
+.solar-page .sync-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  margin-top: 2px;
+}
+.solar-page .sync-line .last-update-btn {
+  color: var(--light);
+}
+.solar-page .sync-line .last-update-time {
+  color: var(--red);
+}
+.solar-page .online-pill {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 10px;
+  border-radius: 20px;
+}
+.solar-page .online-pill.on {
+  color: #4caf50;
+  border: 1px solid #4caf50;
+}
+.solar-page .online-pill.off {
+  color: #fc5c65;
+  border: 1px solid #fc5c65;
+}
+
+/* main container */
+.solar-page main {
+  flex: 1;
+  padding: 32px 36px;
+}
+
+/* metric cards */
+.solar-page .dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 28px;
+  margin-bottom: 40px;
+}
+
+.solar-page .card {
+  background: rgba(30, 45, 60, 0.6);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-radius: 17px;
+  padding: 24px 26px;
+  box-shadow: 0 25px 40px -20px #00000080;
+  transition:
+    transform 0.2s,
+    border-color 0.2s;
+}
+
+.solar-page .card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+.solar-page .card-title {
+  font-size: 1rem;
+  font-weight: 500;
+  color: #bbd4f0;
+}
+.solar-page .card-icon {
+  width: 52px;
+  height: 52px;
+  border-radius: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.8rem;
+  background: rgba(78, 205, 196, 0.1);
+  color: #4ecdc4;
+}
+.solar-page .power {
+  color: var(--green);
+}
+.solar-page .sun {
+  color: var(--orange);
+}
+.solar-page .leaf {
+  color: var(--success-color);
+}
+.solar-page .money {
+  color: var(--dark-blue);
+}
+.solar-page .card-value {
+  font-size: 2.8rem;
+  font-weight: 700;
+}
+
+/* ===== BATTERY WIDGET - ACTUAL BATTERY SHAPE ===== */
+.solar-page .battery-container {
+  background: rgba(30, 45, 60, 0.7);
+  backdrop-filter: blur(12px);
+  border-radius: 20px;
+  padding: 28px 32px;
+  margin-bottom: 40px;
+}
+.solar-page .battery-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 28px;
+}
+.solar-page .chart-title {
+  font-size: 1.4rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.solar-page .chart-title i {
+  color: #ffc107;
+  font-size: 1.8rem;
+}
+.solar-page .battery-status {
+  width: 14px;
+  height: 14px;
+  border-radius: 14px;
+  background: #4caf50;
+  box-shadow: 0 0 16px #4caf50;
+}
+.solar-page .battery-status.offline {
+  background: #fc5c65;
+  box-shadow: 0 0 16px #fc5c65;
+}
+.solar-page .battery-widget {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 30px;
+  align-items: center;
+}
+/* actual battery shape */
+.solar-page .battery-visual {
+  flex: 2;
+  min-width: 260px;
+  display: flex;
+  align-items: center;
+  position: relative;
+  height: 120px;
+}
+.solar-page .battery-body {
+  flex: 1;
+  height: 100%;
+  background: #0c1f2e;
+  border: 3px solid #7f9fb5;
+  border-radius: 20px 8px 8px 20px;
+  position: relative;
+  overflow: hidden;
+  box-shadow: inset 0 0 10px #00000055;
+}
+.solar-page .battery-level {
+  height: 100%;
+  width: 85%;
+  background: #4ecdc4;
+  transition: width 0.5s ease;
+  border-radius: 0 8px 8px 0;
+}
+.solar-page .battery-terminal {
+  width: 18px;
+  height: 48px;
+  background: #7f9fb5;
+  border-radius: 0 10px 10px 0;
+  margin-left: -2px;
+  border: 2px solid #5a7e9c;
+  border-left: none;
+  box-shadow: 2px 0 5px #00000066;
+}
+.solar-page .battery-percentage {
+  position: absolute;
+  left: 0;
+  right: 18px; /* leave space for terminal */
+  top: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2.2rem;
+  font-weight: 800;
+  color: white;
+  text-shadow: 0 2px 12px black;
+  pointer-events: none;
+  z-index: 10;
+}
+.solar-page .battery-details {
+  flex: 1;
+  display: flex;
+  gap: 18px;
+  flex-wrap: wrap;
+}
+.solar-page .battery-detail {
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 36px;
+  padding: 16px 18px;
+  text-align: center;
+  flex: 1;
+  min-width: 100px;
+  border: 1px solid #2f4d66;
+}
+.solar-page .battery-detail-label {
+  font-size: 0.9rem;
+  color: #9dbcd6;
+}
+.solar-page .battery-detail-value {
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: #f0f9ff;
+}
+
+/* charts grid */
+.solar-page .charts-container {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 28px;
+  margin-bottom: 40px;
+}
+/* the Energy Distribution chart has no API data, so the power chart is full width */
+.solar-page .charts-container.single {
+  grid-template-columns: 1fr;
+}
+
+.solar-page .chart-card,
+.solar-page .bar-chart-container {
+  background: rgba(22, 38, 53, 0.7);
+  backdrop-filter: blur(10px);
+  border: 1px solid #2b4b61;
+  border-radius: 42px;
+  padding: 26px;
+  box-shadow: 0 20px 30px -10px black;
+  margin-bottom: 30px;
+}
+
+.solar-page .chart-container {
+  position: relative;
+  width: 100%;
+  height: 380px;
+  margin-top: 10px;
+}
+
+.solar-page .chart-selector {
+  display: flex;
+  gap: 12px;
+  margin: 22px 0 10px;
+  flex-wrap: wrap;
+}
+.solar-page .chart-btn {
+  background: #1c3a4c;
+  border: none;
+  color: #d0e5f5;
+  padding: 10px 24px;
+  border-radius: 40px;
+  font-weight: 500;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: 0.2s;
+}
+.solar-page .chart-btn.active {
+  background: #e68a00;
+  color: #0b1a26;
+  font-weight: 600;
+}
+
+/* footer */
+.solar-page footer {
+  text-align: center;
+  padding: 22px 0;
+  color: #8faec9;
+  border-top: 1px solid #1b4055;
+  background: rgba(8, 22, 33, 0.6);
+  backdrop-filter: blur(8px);
+}
+
+/* today date display */
+.solar-page #todayDateDisplay {
+  background: rgba(78, 205, 196, 0.15) !important;
+  border-radius: 40px;
+  padding: 8px 20px;
+  font-size: 1rem;
+  border: 1px solid #0c5fcd;
+}
+
+/* loading / error blocks */
+.solar-page .state-box {
+  margin: 80px auto;
+  text-align: center;
+  color: #9dbcd6;
+  font-size: 1.1rem;
+}
+.solar-page .error-box {
+  background: rgba(252, 92, 101, 0.1);
+  border: 1px solid rgba(252, 92, 101, 0.4);
+  color: #fc5c65;
+  border-radius: 14px;
+  padding: 12px 18px;
+  margin-bottom: 28px;
+  font-size: 0.95rem;
+}
+
+@media (max-width: 1024px) {
+  .solar-page .dashboard-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .solar-page .charts-container {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .solar-page nav {
+    padding: 0 14px;
+  }
+  .solar-page .breadcumb .title {
+    font-size: 1.2rem;
+  }
+  .solar-page .profile-box h3 {
+    display: none;
+  }
+  .solar-page .dashboard-grid {
+    grid-template-columns: 1fr;
+  }
+  .solar-page .battery-widget {
+    flex-direction: column;
+  }
+  .solar-page .chart-container {
+    height: 300px;
+  }
+  .solar-page main {
+    padding: 18px;
+  }
+  .solar-page .profile {
+    border-radius: 5px;
+  }
+  .solar-page .logOut-btn {
+    padding: 0px 14px;
+    border-radius: 0;
+  }
+  .solar-page .battery-visual {
+    min-width: 200px;
+    height: 90px;
+    flex: unset;
+  }
+  .solar-page .battery-percentage {
+    font-size: 1.8rem;
+  }
+  .solar-page .chart-card,
+  .solar-page .bar-chart-container {
+    padding: 10px;
+    border-radius: 15px;
+  }
+}
