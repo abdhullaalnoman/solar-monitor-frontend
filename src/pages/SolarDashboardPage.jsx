@@ -98,6 +98,12 @@ const ICONS = {
       <path d="M16 2v4M8 2v4M3 10h18" />
     </>
   ),
+  info: (
+    <>
+      <circle cx="12" cy="12" r="10" />
+      <path d="M12 16v-4M12 8h.01" />
+    </>
+  ),
   back: (
     <>
       <path d="m12 19-7-7 7-7" />
@@ -141,37 +147,113 @@ function shellColor(pct) {
   return "rgba(16,185,129,0.6)";
 }
 
-function WideBattery({ pct }) {
+function SmallBattery({ pct }) {
   const filled = pct === null ? 0 : Math.max(pct > 0 ? 1 : 0, Math.ceil(pct / 20));
   const shell = shellColor(pct);
   return (
-    <div className="sp-batt" id="actualBatteryShape">
-      <div className="sp-batt-body" style={{ borderColor: shell }}>
+    <div className="sp-sbatt" title="Battery SOC">
+      <div className="sp-sbatt-body" style={{ borderColor: shell }}>
         {CELL_COLORS.map((cell, i) => (
           <span
             key={i}
-            className="sp-batt-cell"
+            className="sp-sbatt-cell"
             style={
               pct !== null && i < filled
-                ? { background: cell.bg, boxShadow: `0 0 14px ${cell.glow}` }
+                ? { background: cell.bg, boxShadow: `0 0 8px ${cell.glow}` }
                 : undefined
             }
           />
         ))}
-        <div className="sp-batt-pct" id="battery-percentage">
-          {pct === null ? "—" : `${Math.round(pct)}%`}
-        </div>
       </div>
-      <div className="sp-batt-nub" style={{ background: shell }} />
+      <div className="sp-sbatt-nub" style={{ background: shell }} />
+      <span className="sp-sbatt-pct" id="battery-percentage">
+        {pct === null ? "—" : `${formatNum(pct)}%`}
+      </span>
     </div>
+  );
+}
+
+// Online/offline of the site. Any explicit offline signal wins: a text "status" that is
+// not an online word, or "online" = false / "false" / 0. Online only when nothing says
+// offline and a field says online.
+const ONLINE_WORDS = ["online", "up", "active", "ok", "true", "1"];
+function isOnline(r) {
+  const st = typeof r?.status === "string" ? r.status.trim().toLowerCase() : "";
+  const v = r?.online;
+  const vs = typeof v === "string" ? v.trim().toLowerCase() : null;
+
+  if (st && !ONLINE_WORDS.includes(st)) return false;
+  if (v === false || v === 0 || (vs !== null && !ONLINE_WORDS.includes(vs))) return false;
+
+  return (
+    (st !== "" && ONLINE_WORDS.includes(st)) ||
+    v === true ||
+    v === 1 ||
+    (vs !== null && ONLINE_WORDS.includes(vs))
   );
 }
 
 const unwrap = (res) => (Array.isArray(res) ? res : res?.data ?? []);
 
+// any number shown on this page keeps at most 2 digits after the point (0.02345 -> 0.02)
+const fmt2 = (v) => Number(v).toLocaleString(undefined, { maximumFractionDigits: 2 });
+
+// "12.5 V" | "—" when the value is missing
+const withUnit = (v, unit) =>
+  v === null || v === undefined || v === "" || isNaN(Number(v))
+    ? "—"
+    : `${formatNum(v)}${unit ? " " + unit : ""}`;
+
+// seconds -> minute.second notation: 38s -> 0.38, 78s -> 1.18, 600s -> 10.00
+const toMinSec = (sec) => {
+  const t = Math.round(Number(sec) || 0);
+  return Math.floor(t / 60) + (t % 60) / 100;
+};
+
+// chart look (grid / ticks / legend) used by the two 24h charts
+const CH = { grid: "#2d4b63", tick: "#b0d0e8", legend: "#f0f0f0" };
+
+// ── helpers for the carbon / solar-energy 24h charts ──────────────────────
+// field names of those two endpoints are read flexibly: known names first,
+// then the first numeric field that is not a label/time field. null -> 0
+const LABEL_KEYS = ["label", "hour_label", "time", "hour", "date", "hour_start", "slot"];
+const CARBON_KEYS = ["co2_kg", "carbon_kg", "carbon_reduction_kg", "carbon_reduction", "carbon", "value"];
+const ENERGY_KEYS = ["energy_kwh", "solar_energy_kwh", "kwh", "energy", "value"];
+
+const pickLabel = (row) => String(row?.label ?? row?.hour_label ?? row?.time ?? row?.hour ?? "");
+
+const pickValue = (row, keys) => {
+  for (const k of keys) {
+    if (row?.[k] !== undefined) return Number(row[k]) || 0;
+  }
+  for (const [k, val] of Object.entries(row || {})) {
+    if (LABEL_KEYS.includes(k)) continue;
+    if (val !== null && val !== "" && !isNaN(Number(val))) return Number(val);
+  }
+  return 0;
+};
+
+// today's date as DD/MM/YYYY (Bangladesh time) for the 24h endpoints
+const todayDDMMYYYY = () => {
+  const [y, m, d] = todayBD().split("-");
+  return `${d}/${m}/${y}`;
+};
+
+// 1 = OK, 0 = Failed, anything else is shown as-is
+function StatusValue({ v }) {
+  if (v === null || v === undefined || v === "") return <span className="sp-dev-val">—</span>;
+  const n = Number(v);
+  if (n === 1) return <span className="sp-st ok">OK</span>;
+  if (n === 0) return <span className="sp-st bad">Failed</span>;
+  return <span className="sp-dev-val">{String(v)}</span>;
+}
+
 export default function SolarDashboardPage({ solarCode, onBack }) {
   const [summary, setSummary] = useState(null);
-  const [power24h, setPower24h] = useState([]);
+  const [powerGen, setPowerGen] = useState([]);
+  const [carbon, setCarbon] = useState([]);
+  const [energy, setEnergy] = useState([]);
+  const [powerCons, setPowerCons] = useState([]);
   const [daily, setDaily] = useState([]);
   const [monthly, setMonthly] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -182,14 +264,21 @@ export default function SolarDashboardPage({ solarCode, onBack }) {
 
   const fetchAll = useCallback(async () => {
     try {
-      const [s, p, d, m] = await Promise.all([
+      const date = todayDDMMYYYY(); // always today
+      const [s, pg, pc, cr, se, d, m] = await Promise.all([
         api.getSiteSummary(solarCode),
-        api.getPower24h(solarCode),
+        api.getPowerGeneration24h(solarCode, date),
+        api.getPowerConsumption24h(solarCode, date),
+        api.getCarbonReduction24h(solarCode, date),
+        api.getSolarEnergy24h(solarCode, date),
         api.getDaily(solarCode),
         api.getMonthly(solarCode),
       ]);
       setSummary(s?.data ?? null);
-      setPower24h(unwrap(p));
+      setPowerGen(unwrap(pg));
+      setPowerCons(unwrap(pc));
+      setCarbon(unwrap(cr));
+      setEnergy(unwrap(se));
       setDaily(unwrap(d));
       setMonthly(unwrap(m));
       setSyncedAt(new Date());
@@ -223,50 +312,168 @@ export default function SolarDashboardPage({ solarCode, onBack }) {
   // ── battery ────────────────────────────────────────────────────────────
   const hasSoc = !!summary && summary.soc_percent !== null && summary.soc_percent !== undefined;
   const pct = hasSoc ? Math.max(0, Math.min(100, Number(summary.soc_percent))) : null;
-  const online = !!summary?.online;
+  const online = isOnline(summary);
 
   // ── 24h power chart ────────────────────────────────────────────────────
   const powerChartData = useMemo(
     () => ({
-      labels: power24h.map((r) =>
-        new Date(r.time).toLocaleTimeString("en-BD", {
-          timeZone: "Asia/Dhaka",
-          hour: "2-digit",
-          minute: "2-digit",
-          hour12: true,
-        })
-      ),
+      labels: powerGen.map((r) => r.label ?? ""),
       datasets: [
         {
           label: "Power Generation (W)",
-          data: power24h.map((r) => r.power_w),
+          data: powerGen.map((r) => Number(r.power_w) || 0), // null -> 0
           borderColor: "#FFC107",
           backgroundColor: "rgba(255,193,7,0.1)",
           borderWidth: 3,
           fill: true,
           tension: 0.4,
-          pointRadius: 0,
-          pointHoverRadius: 5,
+          pointBackgroundColor: "#FFC107",
+          pointBorderColor: "#FFC107",
+          pointRadius: 4,
+          pointHoverRadius: 7,
+          pointHitRadius: 10,
         },
       ],
     }),
-    [power24h]
+    [powerGen]
   );
 
   const powerChartOptions = {
     responsive: true,
     maintainAspectRatio: false,
-    plugins: { legend: { labels: { color: C.legend } } },
+    interaction: { mode: "nearest", intersect: true },
+    plugins: {
+      legend: { labels: { color: CH.legend } },
+      tooltip: { callbacks: { label: (ctx) => `Load: ${fmt2(ctx.parsed.y)} W` } },
+    },
     scales: {
       x: {
-        grid: { color: C.grid },
-        ticks: { color: C.tick, maxTicksLimit: 12, maxRotation: 0 },
+        grid: { color: CH.grid },
+        ticks: { color: CH.tick, maxTicksLimit: 12, maxRotation: 0 },
       },
       y: {
-        grid: { color: C.grid },
-        ticks: { color: C.tick },
+        grid: { color: CH.grid },
+        ticks: { color: CH.tick, callback: (v) => fmt2(v) },
         beginAtZero: true,
         suggestedMax: summary?.panel_capacity_w || undefined,
+      },
+    },
+  };
+
+  // ── carbon reduction + solar energy 24h charts (same look as power generation) ──
+  const makeLineData = (rows, keys, label, color, fill) => ({
+    labels: rows.map(pickLabel),
+    datasets: [
+      {
+        label,
+        data: rows.map((r) => pickValue(r, keys)),
+        borderColor: color,
+        backgroundColor: fill,
+        borderWidth: 3,
+        fill: true,
+        tension: 0.4,
+        pointBackgroundColor: color,
+        pointBorderColor: color,
+        pointRadius: 4,
+        pointHoverRadius: 7,
+        pointHitRadius: 10,
+      },
+    ],
+  });
+
+  const makeLineOptions = (tipName, unit) => ({
+    responsive: true,
+    maintainAspectRatio: false,
+    interaction: { mode: "nearest", intersect: true },
+    plugins: {
+      legend: { labels: { color: CH.legend } },
+      tooltip: { callbacks: { label: (ctx) => `${tipName}: ${fmt2(ctx.parsed.y)} ${unit}` } },
+    },
+    scales: {
+      x: {
+        grid: { color: CH.grid },
+        ticks: { color: CH.tick, maxTicksLimit: 12, maxRotation: 0 },
+      },
+      y: {
+        grid: { color: CH.grid },
+        ticks: { color: CH.tick, callback: (v) => fmt2(v) },
+        beginAtZero: true,
+      },
+    },
+  });
+
+  const carbonChartData = useMemo(
+    () => makeLineData(carbon, CARBON_KEYS, "Carbon Emission Reduction (kg)", "#4caf50", "rgba(76,175,80,0.1)"),
+    [carbon]
+  );
+  const energyChartData = useMemo(
+    () => makeLineData(energy, ENERGY_KEYS, "Solar Energy (kWh)", "#ff9800", "rgba(255,152,0,0.1)"),
+    [energy]
+  );
+  const carbonChartOptions = makeLineOptions("Carbon Reduction", "kg");
+  const energyChartOptions = makeLineOptions("Solar Energy", "kWh");
+
+  // ── power consumption chart (duration_seconds -> min.sec, null -> 0) ───
+  const consRows = useMemo(
+    () =>
+      powerCons.map((r) => ({
+        label: r.hour_label ?? "",
+        minutes: toMinSec(r.duration_seconds),
+        load: Number(r.load_w) || 0, // null -> 0
+        status: r.status ?? 0,
+      })),
+    [powerCons]
+  );
+
+  const consChartData = {
+    labels: consRows.map((r) => r.label),
+    datasets: [
+      {
+        label: "Power Consumption (W)",
+        data: consRows.map((r) => r.load),
+        borderColor: "#4ecdc4",
+        backgroundColor: "rgba(78,205,196,0.1)",
+        borderWidth: 3,
+        fill: true,
+        tension: 0.4,
+        pointBackgroundColor: "#4ecdc4",
+        pointBorderColor: "#4ecdc4",
+        pointRadius: 4,
+        pointHoverRadius: 7,
+        pointHitRadius: 10,
+      },
+    ],
+  };
+
+  const consChartOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    interaction: { mode: "nearest", intersect: true },
+    plugins: {
+      legend: { labels: { color: CH.legend } },
+      tooltip: {
+        callbacks: {
+          label: (ctx) => {
+            const row = consRows[ctx.dataIndex];
+            return [
+              `Load: ${fmt2(row?.load ?? 0)} W`,
+              `Time: ${(row?.minutes ?? 0).toFixed(2)} min`,
+              `Status: ${row?.status ?? 0}`,
+            ];
+          },
+        },
+      },
+    },
+    scales: {
+      x: {
+        grid: { color: CH.grid },
+        ticks: { color: CH.tick, maxTicksLimit: 12, maxRotation: 0 },
+      },
+      y: {
+        grid: { color: CH.grid },
+        ticks: { color: CH.tick, callback: (v) => fmt2(v) },
+        beginAtZero: true,
+        title: { display: true, text: "Load (W)", color: CH.tick },
       },
     },
   };
@@ -324,7 +531,7 @@ export default function SolarDashboardPage({ solarCode, onBack }) {
           color: (ctx) => (ctx.index === todayIndex ? "#FFC107" : C.tick),
         },
       },
-      y: { grid: { color: C.grid }, ticks: { color: C.tick } },
+      y: { grid: { color: C.grid }, ticks: { color: C.tick, callback: (v) => fmt2(v) } },
     },
   };
 
@@ -350,10 +557,15 @@ export default function SolarDashboardPage({ solarCode, onBack }) {
   const monthlyChartOptions = {
     responsive: true,
     maintainAspectRatio: false,
-    plugins: { legend: { labels: { color: C.legend } } },
+    plugins: {
+      legend: { labels: { color: C.legend } },
+      tooltip: {
+        callbacks: { label: (ctx) => `${ctx.dataset.label}: ${fmt2(ctx.parsed.y)}` },
+      },
+    },
     scales: {
       x: { grid: { color: C.grid }, ticks: { color: C.tick } },
-      y: { grid: { color: C.grid }, ticks: { color: C.tick } },
+      y: { grid: { color: C.grid }, ticks: { color: C.tick, callback: (v) => fmt2(v) } },
     },
   };
 
@@ -363,6 +575,23 @@ export default function SolarDashboardPage({ solarCode, onBack }) {
       : { backgroundColor: "#1e293b", color: "#cbd5e1" };
 
   const siteTitle = summary?.solar_name || summary?.solar_code || solarCode;
+
+  const specItems = [
+    { label: "Panel Capacity", value: withUnit(summary?.solar_panel_watt, "W"), icon: "sun" },
+    { label: "Battery Capacity", value: withUnit(summary?.battery_capacity, "AH"), icon: "battery" },
+  ];
+
+  const devItems = [
+    { label: "Internal Battery", value: withUnit(summary?.internal_battery_volt, "V") },
+    { label: "PSU 1", status: summary?.psu1 },
+    { label: "PSU 2", status: summary?.psu2 },
+    { label: "Operator", value: summary?.operator ?? "—" },
+    { label: "Signal Strength", value: withUnit(summary?.signal_strength) },
+    { label: "Active", value: summary?.active ?? "—" },
+    { label: "Server 1", status: summary?.server1 },
+    { label: "Server 2", status: summary?.server2 },
+    { label: "Data Sequence", status: summary?.data_sequence },
+  ];
 
   return (
     <div className="solar-page sp">
@@ -380,6 +609,7 @@ export default function SolarDashboardPage({ solarCode, onBack }) {
               <span className={`sp-pill ${online ? "on" : "off"}`}>
                 {online ? "ONLINE" : "OFFLINE"}
               </span>
+              <SmallBattery pct={pct} />
               <span className="sp-refresh">
                 <span className="sp-dot" />
                 Refresh in <b>{countdown}s</b>
@@ -409,6 +639,22 @@ export default function SolarDashboardPage({ solarCode, onBack }) {
               <>
                 {/* metric cards */}
                 <div className="dashboard-grid">
+                  <div className="card sp-spec-card">
+                    <div className="card-header">
+                      <div className="card-title">Site Specification</div>
+                      <div className="card-icon">
+                        <Icon name="info" />
+                      </div>
+                    </div>
+                    <div className="sp-spec-grid">
+                      {specItems.map((it) => (
+                        <div className="sp-spec-cell" key={it.label}>
+                          <div className="sp-spec-label">{it.label}</div>
+                          <div className="sp-spec-value">{it.value}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                   <div className="card">
                     <div className="card-header">
                       <div className="card-title">Current Power Generation</div>
@@ -455,50 +701,45 @@ export default function SolarDashboardPage({ solarCode, onBack }) {
                   </div>
                 </div>
 
-                {/* battery — wide, 5 cells like the BatteryGauge component */}
-                <div className="card battery-container">
-                  <div className="battery-header">
-                    <div className="chart-title">
-                      <Icon name="battery" />
-                      Battery System
-                    </div>
-                    <div className={`battery-status ${online ? "" : "offline"}`} id="battery-status" />
+                {/* carbon reduction + solar energy: full row each */}
+                <div className="chart-card">
+                  <div className="chart-title">
+                    <Icon name="leaf" />
+                    Carbon Emission Reduction (Last 24 Hours)
                   </div>
-                  <div className="battery-widget">
-                    <WideBattery pct={pct} />
-                    <div className="battery-details">
-                      <div className="battery-detail">
-                        <div className="battery-detail-label">Voltage</div>
-                        <div className="battery-detail-value" id="battery-voltage">
-                          {summary?.battery_voltage != null
-                            ? `${Number(summary.battery_voltage).toFixed(1)}V`
-                            : "—"}
-                        </div>
-                      </div>
-                      <div className="battery-detail">
-                        <div className="battery-detail-label">Temperature</div>
-                        <div className="battery-detail-value" id="battery-temp">
-                          {summary?.temperature != null ? `${summary.temperature}°C` : "—"}
-                        </div>
-                      </div>
-                      <div className="battery-detail">
-                        <div className="battery-detail-label">Remaining Time</div>
-                        <div className="battery-detail-value" id="battery-time">
-                          {summary?.backup_hours != null ? `${summary.backup_hours}h` : "—"}
-                        </div>
-                      </div>
-                    </div>
+                  <div className="chart-container">
+                    <Line data={carbonChartData} options={carbonChartOptions} />
+                  </div>
+                </div>
+                <div className="chart-card">
+                  <div className="chart-title">
+                    <Icon name="sun" />
+                    Solar Energy (Last 24 Hours)
+                  </div>
+                  <div className="chart-container">
+                    <Line data={energyChartData} options={energyChartOptions} />
                   </div>
                 </div>
 
-                {/* 24h power */}
-                <div className="chart-card">
-                  <div className="chart-title">
-                    <Icon name="line" />
-                    Power Generation (Last 24 Hours)
+                {/* generation + consumption: half row each */}
+                <div className="sp-halfrow">
+                  <div className="chart-card">
+                    <div className="chart-title">
+                      <Icon name="line" />
+                      Power Generation (Last 24 Hours)
+                    </div>
+                    <div className="chart-container">
+                      <Line data={powerChartData} options={powerChartOptions} />
+                    </div>
                   </div>
-                  <div className="chart-container">
-                    <Line data={powerChartData} options={powerChartOptions} />
+                  <div className="chart-card">
+                    <div className="chart-title">
+                      <Icon name="line" />
+                      Power Consumption (Last 24 Hours)
+                    </div>
+                    <div className="chart-container">
+                      <Line data={consChartData} options={consChartOptions} />
+                    </div>
                   </div>
                 </div>
 
@@ -556,6 +797,26 @@ export default function SolarDashboardPage({ solarCode, onBack }) {
                     <Bar data={monthlyChartData} options={monthlyChartOptions} />
                   </div>
                 </div>
+
+                {/* device information */}
+                <div className="bar-chart-container">
+                  <div className="chart-title">
+                    <Icon name="info" />
+                    Device Information
+                  </div>
+                  <div className="sp-devgrid">
+                    {devItems.map((it) => (
+                      <div className="sp-dev" key={it.label}>
+                        <div className="sp-dev-label">{it.label}</div>
+                        {"status" in it ? (
+                          <StatusValue v={it.status} />
+                        ) : (
+                          <span className="sp-dev-val">{it.value}</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
               </>
             )}
           </div>
@@ -580,7 +841,12 @@ const OVERRIDE_CSS = `
 .solar-page.sp #content { width: 100%; max-width: 100%; min-width: 0; min-height: 100vh; }
 .solar-page.sp main { padding: 20px 24px; border-left: none; min-width: 0; }
 .solar-page.sp .container { width: 100%; max-width: 100%; min-width: 0; }
-.solar-page.sp .dashboard-grid { gap: 16px; margin-bottom: 20px; }
+.solar-page.sp .dashboard-grid {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 16px; margin-bottom: 20px;
+}
+.solar-page.sp .dashboard-grid .card { padding: 20px 18px; }
+.solar-page.sp .dashboard-grid .card-value { font-size: clamp(1.5rem, 2vw, 2.4rem); }
 .solar-page.sp .dashboard-grid > * { min-width: 0; }
 
 /* icons (inline svg) */
@@ -655,48 +921,61 @@ const OVERRIDE_CSS = `
 .solar-page.sp .chart-container { min-width: 0; overflow: hidden; height: 360px; }
 .solar-page.sp .chart-btn.active { color: #0b1a26; }
 
-/* wide battery: 5 cells inside, like the BatteryGauge component */
-.solar-page.sp .sp-batt {
-  flex: 2; min-width: 260px; display: flex; align-items: center; height: 110px;
-}
-.solar-page.sp .sp-batt-body {
-  position: relative; flex: 1; height: 100%;
-  display: flex; align-items: stretch; gap: 10px;
-  padding: 12px;
-  background: rgba(2,6,23,0.6);
-  border: 3px solid #475569;
-  border-radius: 14px;
+/* small battery (top row): 5 cells, soc only */
+.solar-page.sp .sp-sbatt { display: inline-flex; align-items: center; gap: 0; }
+.solar-page.sp .sp-sbatt-body {
+  display: flex; align-items: center; gap: 3px; padding: 4px 5px;
+  background: rgba(2,6,23,0.6); border: 2px solid #475569; border-radius: 6px;
   transition: border-color 0.3s;
 }
-.solar-page.sp .sp-batt-cell {
-  flex: 1; border-radius: 6px;
-  background: rgba(51,65,85,0.7); /* slate-700/70 = empty cell */
+.solar-page.sp .sp-sbatt-cell {
+  width: 7px; height: 18px; border-radius: 2px; background: rgba(51,65,85,0.7);
   transition: all 0.3s;
 }
-.solar-page.sp .sp-batt-nub {
-  width: 12px; height: 44px; margin-left: 3px;
-  border-radius: 0 6px 6px 0;
-  transition: background 0.3s;
-}
-.solar-page.sp .sp-batt-pct {
-  position: absolute; inset: 0;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 2.2rem; font-weight: 800; color: #fff;
-  text-shadow: 0 2px 10px #000, 0 0 4px #000;
-  pointer-events: none;
-}
+.solar-page.sp .sp-sbatt-nub { width: 3px; height: 10px; border-radius: 0 2px 2px 0; transition: background 0.3s; }
+.solar-page.sp .sp-sbatt-pct { margin-left: 8px; font-size: 0.95rem; font-weight: 800; color: #e2e8f0; }
 
+/* spec card: sits first in the metric grid, same card look */
+.solar-page.sp .sp-spec-card .card-header { margin-bottom: 12px; }
+.solar-page.sp .sp-spec-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 14px; }
+.solar-page.sp .sp-spec-cell { min-width: 0; }
+.solar-page.sp .sp-spec-label { font-size: 0.72rem; color: #94a3b8; white-space: nowrap; }
+.solar-page.sp .sp-spec-value { font-size: 1.05rem; font-weight: 700; color: #f1f5f9; white-space: nowrap; }
+
+/* generation + consumption: half row each */
+.solar-page.sp .sp-halfrow {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px;
+}
+.solar-page.sp .sp-halfrow .chart-card { margin-bottom: 0; }
+
+/* device information */
+.solar-page.sp .sp-devgrid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 14px; margin-top: 18px;
+}
+.solar-page.sp .sp-dev {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  background: rgba(2,6,23,0.6); border: 1px solid #1e293b; border-radius: 14px;
+  padding: 14px 18px;
+}
+.solar-page.sp .sp-dev-label { font-size: 0.9rem; color: #94a3b8; }
+.solar-page.sp .sp-dev-val { font-size: 1.1rem; font-weight: 700; color: #f1f5f9; }
+.solar-page.sp .sp-st { font-size: 0.8rem; font-weight: 700; padding: 3px 12px; border-radius: 999px; }
+.solar-page.sp .sp-st.ok { color: #34d399; background: rgba(16,185,129,0.15); border: 1px solid rgba(16,185,129,0.3); }
+.solar-page.sp .sp-st.bad { color: #f87171; background: rgba(239,68,68,0.15); border: 1px solid rgba(239,68,68,0.3); }
+
+@media (max-width: 1279px) {
+  .solar-page.sp .dashboard-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
 @media (max-width: 1024px) {
   .solar-page.sp .dashboard-grid { grid-template-columns: repeat(2, 1fr); }
+  .solar-page.sp .sp-halfrow { grid-template-columns: 1fr; }
 }
 @media (max-width: 768px) {
   .solar-page.sp main { padding: 12px; }
   .solar-page.sp .dashboard-grid { grid-template-columns: 1fr; }
   .solar-page.sp .sp-refresh { margin-left: 0; }
   .solar-page.sp .sp-sync { margin-left: 0; width: 100%; }
-  .solar-page.sp .sp-batt { min-width: 0; width: 100%; flex: unset; height: 84px; }
-  .solar-page.sp .sp-batt-body { gap: 6px; padding: 8px; }
-  .solar-page.sp .sp-batt-pct { font-size: 1.7rem; }
   .solar-page.sp .chart-container { height: 280px; }
   .solar-page.sp .chart-card,
   .solar-page.sp .bar-chart-container { padding: 12px; border-radius: 14px; }

@@ -1,6 +1,5 @@
 import React, { useState } from "react";
 import { useAuth } from "../config/AuthContext";
-import logo from "../../assets/logo.svg"
 
 export default function LoginPage({ onSuccess }) {
   const { loginMonitor } = useAuth();
@@ -43,15 +42,12 @@ export default function LoginPage({ onSuccess }) {
         {/* Logo */}
         <div className="text-center mb-10">
           <div className="inline-flex items-center gap-3 mb-4">
-            <div className="w-16 h-16 flex items-center justify-center ">
-              <img src={logo} alt="Logo" width={150} height={150} />
-            </div>
             <div className="text-left">
               <div
                 className="text-2xl font-black text-white tracking-tight"
                 style={{ fontFamily: "'Rajdhani', sans-serif" }}
               >
-                SOLAR MONITOR
+                Solar Energy Monitor
               </div>
             </div>
           </div>
@@ -190,8 +186,8 @@ export default function LoginPage({ onSuccess }) {
           </form>
         </div>
 
-        <p className="text-center text-slate-600 text-xs mt-6">
-          © {new Date().getFullYear()} Link3 Technologies Ltd ·</p>
+        {/* <p className="text-center text-slate-600 text-xs mt-6"> */}
+          {/* © {new Date().getFullYear()} Link3 Technologies Ltd ·</p> */}
       </div>
     </div>
   );

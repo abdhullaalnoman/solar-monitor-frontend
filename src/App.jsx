@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { AuthProvider, useAuth } from "./config/AuthContext";
 import LoginPage from "./pages/LoginPage";
 import DashboardPage from "./pages/DashboardPage";
@@ -11,29 +11,13 @@ fontLink.href = "https://fonts.googleapis.com/css2?family=Rajdhani:wght@600;700&
 fontLink.rel = "stylesheet";
 document.head.appendChild(fontLink);
 
-// "#/solar/solar1" -> "solar1" (lets the browser refresh/back button keep the open site)
-function codeFromHash() {
-  const m = window.location.hash.match(/^#\/solar\/(.+)$/);
-  return m ? decodeURIComponent(m[1]) : null;
-}
-
 function AppInner() {
   const { user, role, loading, setRole } = useAuth();
   const [view, setView] = useState("dashboard"); // "dashboard"|"adminLogin"|"admin"
-  const [solarCode, setSolarCode] = useState(codeFromHash());
+  const [solarCode, setSolarCode] = useState(null); // open site dashboard (no URL change)
 
-  useEffect(() => {
-    const onHash = () => setSolarCode(codeFromHash());
-    window.addEventListener("hashchange", onHash);
-    return () => window.removeEventListener("hashchange", onHash);
-  }, []);
-
-  const openSolar = (code) => {
-    window.location.hash = `#/solar/${encodeURIComponent(code)}`;
-  };
-  const closeSolar = () => {
-    window.location.hash = "";
-  };
+  const openSolar = (code) => setSolarCode(code);
+  const closeSolar = () => setSolarCode(null);
 
   if (loading) {
     return (

@@ -37,6 +37,15 @@ export const api = {
     request(`/api/dashboard/${enc(code)}/daily${month ? `?month=${enc(month)}` : ""}`),
   getMonthly: (code, year) =>
     request(`/api/dashboard/${enc(code)}/monthly${year ? `?year=${enc(year)}` : ""}`),
+  // date format: DD/MM/YYYY
+  getPowerGeneration24h: (code, date) =>
+    request(`/api/dashboard/${enc(code)}/power-generation-24h?date=${enc(date)}`),
+  getPowerConsumption24h: (code, date) =>
+    request(`/api/dashboard/${enc(code)}/power-consumption-24h?date=${enc(date)}`),
+  getCarbonReduction24h: (code, date) =>
+    request(`/api/dashboard/${enc(code)}/carbon-reduction-24h?date=${enc(date)}`),
+  getSolarEnergy24h: (code, date) =>
+    request(`/api/dashboard/${enc(code)}/solar-energy-24h?date=${enc(date)}`),
 
   // ── Solar sites CRUD ────────────────────────────────────────────────────
   getSolarList: () => request("/api/solar"),
