@@ -24,7 +24,7 @@ export function AuthProvider({ children }) {
 
   async function loginMonitor(username, password) {
     // Check username (case-insensitive) and password against config
-    if (username.toLowerCase() !== "power") {
+    if (username.toLowerCase() !== "solar") {
       throw new Error("Invalid username or password");
     }
     if (password !== MONITOR_CREDENTIALS.password) {

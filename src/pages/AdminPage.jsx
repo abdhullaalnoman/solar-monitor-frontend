@@ -41,10 +41,19 @@ function labelize(key) {
 
 const FIELD_GROUPS = [
   { title: "Site Identity", fields: ["solar_code", "solar_name"] },
-  { title: "Revenue & Carbon", fields: ["tariff_per_kwh", "co2_kg_per_kwh"] },
-  { title: "Battery", fields: ["batt_empty_volt", "batt_full_volt", "batt_nominal_volt", "batt_capacity_ah"] },
-  { title: "Load & Panels", fields: ["load_watt", "panel_capacity_w"] },
+  // { title: "Revenue & Carbon", fields: ["tariff_per_kwh", "co2_kg_per_kwh"] },
+  // { title: "Battery", fields: ["batt_empty_volt", "batt_full_volt", "batt_nominal_volt", "batt_capacity_ah"] },
+  // { title: "Load & Panels", fields: ["load_watt", "panel_capacity_w"] },
+  { title: "Solar Panel", fields: ["solar_panel_voltage", "solar_panel_watt"] },
+  { title: "Battery", fields: ["battery_voltage", "battery_capacity"] },
 ];
+
+const FIELD_LABELS = {
+  solar_panel_voltage: "Panel Voltage (V)",
+  solar_panel_watt: "Panel Capacity (W)",
+  battery_voltage: "Battery Voltage (V)",
+  battery_capacity: "Battery Capacity (AH)",
+};
 const ALL_FIELDS = FIELD_GROUPS.flatMap((g) => g.fields);
 const TEXT_FIELDS = ["solar_code", "solar_name"];
 const EMPTY_FORM = ALL_FIELDS.reduce((acc, f) => ({ ...acc, [f]: "" }), {});
@@ -91,7 +100,7 @@ function SolarFormModal({ initial, isEdit, onClose, onSubmit }) {
               {group.fields.map((f) => (
                 <div key={f}>
                   <label className="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1">
-                    {labelize(f)}
+                    {FIELD_LABELS[f] ?? labelize(f)}
                   </label>
                   <input
                     type={TEXT_FIELDS.includes(f) ? "text" : "number"}
@@ -248,10 +257,14 @@ export default function AdminPage({ onBack }) {
                   <tr className="bg-slate-800 text-slate-400 text-xs uppercase tracking-wider">
                     <th className={`text-left ${th}`}>Code</th>
                     <th className={`text-left ${th}`}>Name</th>
-                    <th className={`text-left ${th}`}>Panel (W)</th>
-                    <th className={`text-left ${th}`}>Tariff / kWh</th>
-                    <th className={`text-left ${th}`}>Battery (Ah / V)</th>
-                    <th className={`text-left ${th}`}>Load (W)</th>
+                    {/* <th className={`text-left ${th}`}>Panel (W)</th> */}
+                    {/* <th className={`text-left ${th}`}>Tariff / kWh</th> */}
+                    {/* <th className={`text-left ${th}`}>Battery (Ah / V)</th> */}
+                    {/* <th className={`text-left ${th}`}>Load (W)</th> */}
+                    <th className={`text-left ${th}`}>Panel Voltage (V)</th>
+                    <th className={`text-left ${th}`}>Panel Capacity (W)</th>
+                    <th className={`text-left ${th}`}>Battery Voltage (V)</th>
+                    <th className={`text-left ${th}`}>Battery Capacity (AH)</th>
                     <th className={`text-right ${th}`}>Actions</th>
                   </tr>
                 </thead>
@@ -269,10 +282,14 @@ export default function AdminPage({ onBack }) {
                           <span className="font-mono text-cyan-400/80 text-xs bg-slate-800/60 px-2 py-1 rounded-lg">{s.solar_code}</span>
                         </td>
                         <td className="px-5 py-3.5 text-white font-medium">{s.solar_name || "—"}</td>
-                        <td className="px-5 py-3.5 text-slate-300 text-xs font-mono">{s.panel_capacity_w ?? "—"}</td>
-                        <td className="px-5 py-3.5 text-slate-300 text-xs font-mono">{s.tariff_per_kwh ?? "—"}</td>
-                        <td className="px-5 py-3.5 text-slate-300 text-xs font-mono">{s.batt_capacity_ah ?? "—"} / {s.batt_nominal_volt ?? "—"}</td>
-                        <td className="px-5 py-3.5 text-slate-300 text-xs font-mono">{s.load_watt ?? "—"}</td>
+                        {/* <td className="px-5 py-3.5 text-slate-300 text-xs font-mono">{s.panel_capacity_w ?? "—"}</td> */}
+                        {/* <td className="px-5 py-3.5 text-slate-300 text-xs font-mono">{s.tariff_per_kwh ?? "—"}</td> */}
+                        {/* <td className="px-5 py-3.5 text-slate-300 text-xs font-mono">{s.batt_capacity_ah ?? "—"} / {s.batt_nominal_volt ?? "—"}</td> */}
+                        {/* <td className="px-5 py-3.5 text-slate-300 text-xs font-mono">{s.load_watt ?? "—"}</td> */}
+                        <td className="px-5 py-3.5 text-slate-300 text-xs font-mono">{s.solar_panel_voltage ?? "—"}</td>
+                        <td className="px-5 py-3.5 text-slate-300 text-xs font-mono">{s.solar_panel_watt ?? "—"}</td>
+                        <td className="px-5 py-3.5 text-slate-300 text-xs font-mono">{s.battery_voltage ?? "—"}</td>
+                        <td className="px-5 py-3.5 text-slate-300 text-xs font-mono">{s.battery_capacity ?? "—"}</td>
                         <td className="px-5 py-3.5">
                           <div className="flex items-center justify-end gap-2">
                             <button onClick={() => setEditing(s)} className="text-xs font-semibold text-cyan-400 hover:text-cyan-300 bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/25 rounded-lg px-3 py-1.5 transition-all">Edit</button>

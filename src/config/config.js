@@ -20,11 +20,20 @@ export const firebaseConfig = {
 // Firebase requires a real email format (use gmail.com or any real domain)
 // Create these two users in: Firebase Console → Authentication → Users → Add user
 export const MONITOR_CREDENTIALS = {
-  email: "power@link3bts.com",    // ← Use this email in Firebase Auth console
-  password: "Link3Power",          // ← Login password (username shown to user: "Power")
+  email: "solar@solarpower.com",    // ← Use this email in Firebase Auth console
+  password: "SolarPower",          // ← Login password (username shown to user: "Power")
 };
 
 export const ADMIN_CREDENTIALS = {
-  email: "admin@link3bts.com",    // ← Use this email in Firebase Auth console
-  password: "Link3Power@1745",     // ← Must be 6+ chars; Firebase rejects short passwords
+  email: "admin@solarpower.com",    // ← Use this email in Firebase Auth console
+  password: "SolarPower@1745",     // ← Must be 6+ chars; Firebase rejects short passwords
 };
+// export const MONITOR_CREDENTIALS = {
+//   email: "power@link3bts.com",    // ← Use this email in Firebase Auth console
+//   password: "Link3Power",          // ← Login password (username shown to user: "Power")
+// };
+
+// export const ADMIN_CREDENTIALS = {
+//   email: "admin@link3bts.com",    // ← Use this email in Firebase Auth console
+//   password: "Link3Power@1745",     // ← Must be 6+ chars; Firebase rejects short passwords
+// };
