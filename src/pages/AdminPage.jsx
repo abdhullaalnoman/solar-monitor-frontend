@@ -46,6 +46,7 @@ const FIELD_GROUPS = [
   // { title: "Load & Panels", fields: ["load_watt", "panel_capacity_w"] },
   { title: "Solar Panel", fields: ["solar_panel_voltage", "solar_panel_watt"] },
   { title: "Battery", fields: ["battery_voltage", "battery_capacity"] },
+  { title: "Rates", fields: ["carbon_factor", "unit_rate"] },
 ];
 
 const FIELD_LABELS = {
@@ -53,6 +54,14 @@ const FIELD_LABELS = {
   solar_panel_watt: "Panel Capacity (W)",
   battery_voltage: "Battery Voltage (V)",
   battery_capacity: "Battery Capacity (AH)",
+  carbon_factor: "Carbon Factor",
+  unit_rate: "Unit Rate",
+};
+
+// shown in the empty field: what the server uses when a new site leaves it out
+const FIELD_PLACEHOLDERS = {
+  carbon_factor: "0.62 (default)",
+  unit_rate: "15.36 (default)",
 };
 const ALL_FIELDS = FIELD_GROUPS.flatMap((g) => g.fields);
 const TEXT_FIELDS = ["solar_code", "solar_name"];
@@ -106,6 +115,7 @@ function SolarFormModal({ initial, isEdit, onClose, onSubmit }) {
                     type={TEXT_FIELDS.includes(f) ? "text" : "number"}
                     step="any"
                     value={form[f] ?? ""}
+                    placeholder={FIELD_PLACEHOLDERS[f] ?? ""}
                     onChange={(e) => setField(f, e.target.value)}
                     disabled={isEdit && f === "solar_code"}
                     required={f === "solar_code"}

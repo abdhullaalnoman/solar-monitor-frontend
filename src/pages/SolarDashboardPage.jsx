@@ -12,7 +12,7 @@ import {
 } from "chart.js";
 import { Line, Bar } from "react-chartjs-2";
 import { api } from "../utils/api";
-import { formatPower, formatNum, todayBD } from "../utils/formatters";
+import { todayBD } from "../utils/formatters";
 import "../solar.css";
 
 ChartJS.register(
@@ -104,6 +104,7 @@ const ICONS = {
       <path d="M12 16v-4M12 8h.01" />
     </>
   ),
+  activity: <path d="M22 12h-4l-3 9L9 3l-3 9H2" />,
   back: (
     <>
       <path d="m12 19-7-7 7-7" />
@@ -147,7 +148,7 @@ function shellColor(pct) {
   return "rgba(16,185,129,0.6)";
 }
 
-function SmallBattery({ pct }) {
+function SmallBattery({ pct, text }) {
   const filled = pct === null ? 0 : Math.max(pct > 0 ? 1 : 0, Math.ceil(pct / 20));
   const shell = shellColor(pct);
   return (
@@ -167,7 +168,7 @@ function SmallBattery({ pct }) {
       </div>
       <div className="sp-sbatt-nub" style={{ background: shell }} />
       <span className="sp-sbatt-pct" id="battery-percentage">
-        {pct === null ? "—" : `${formatNum(pct)}%`}
+        {pct === null ? "—" : `${text ?? pct}%`}
       </span>
     </div>
   );
@@ -193,21 +194,30 @@ function isOnline(r) {
   );
 }
 
-const unwrap = (res) => (Array.isArray(res) ? res : res?.data ?? []);
+// finds the rows array: [..] | {data:[..]} | {data:{..:[..]}} | {..:[..]}
+const unwrap = (res) => {
+  if (Array.isArray(res)) return res;
+  const d = res?.data;
+  if (Array.isArray(d)) return d;
+  const inner = d && typeof d === "object" ? Object.values(d).find(Array.isArray) : null;
+  if (inner) return inner;
+  const top = res && typeof res === "object" ? Object.values(res).find(Array.isArray) : null;
+  return top ?? [];
+};
 
-// any number shown on this page keeps at most 2 digits after the point (0.02345 -> 0.02)
-const fmt2 = (v) => Number(v).toLocaleString(undefined, { maximumFractionDigits: 2 });
+// exact data: values are shown exactly as the API sends them (no rounding, no min/max digits)
+const raw = (v) => (v === null || v === undefined || v === "" ? "—" : String(v));
+const withUnit = (v, unit, gap = " ") =>
+  raw(v) === "—" ? "—" : `${raw(v)}${unit ? gap + unit : ""}`;
 
-// "12.5 V" | "—" when the value is missing
-const withUnit = (v, unit) =>
-  v === null || v === undefined || v === "" || isNaN(Number(v))
-    ? "—"
-    : `${formatNum(v)}${unit ? " " + unit : ""}`;
-
-// seconds -> minute.second notation: 38s -> 0.38, 78s -> 1.18, 600s -> 10.00
-const toMinSec = (sec) => {
-  const t = Math.round(Number(sec) || 0);
-  return Math.floor(t / 60) + (t % 60) / 100;
+// always 3 digits after the point, cut (not rounded): 0.0034 -> 0.003, 0.1 -> 0.100
+const exact3 = (v) => {
+  if (v === null || v === undefined || v === "") return "—";
+  let str = typeof v === "string" ? v.trim() : String(v);
+  if (isNaN(Number(str))) return "—";
+  if (/e/i.test(str)) str = Number(str).toFixed(20); // avoid exponent notation (very small values)
+  const [int, dec = ""] = str.split(".");
+  return `${int}.${(dec + "000").slice(0, 3)}`;
 };
 
 // chart look (grid / ticks / legend) used by the two 24h charts
@@ -218,6 +228,7 @@ const CH = { grid: "#2d4b63", tick: "#b0d0e8", legend: "#f0f0f0" };
 // then the first numeric field that is not a label/time field. null -> 0
 const LABEL_KEYS = ["label", "hour_label", "time", "hour", "date", "hour_start", "slot"];
 const CARBON_KEYS = ["co2_kg", "carbon_kg", "carbon_reduction_kg", "carbon_reduction", "carbon", "value"];
+const POWER_KEYS = ["power_w", "power", "power_watt", "avg_power_w", "generation_w", "value"];
 const ENERGY_KEYS = ["energy_kwh", "solar_energy_kwh", "kwh", "energy", "value"];
 
 const pickLabel = (row) => String(row?.label ?? row?.hour_label ?? row?.time ?? row?.hour ?? "");
@@ -265,14 +276,17 @@ export default function SolarDashboardPage({ solarCode, onBack }) {
   const fetchAll = useCallback(async () => {
     try {
       const date = todayDDMMYYYY(); // always today
+      const todayStr = todayBD();
+      const month = todayStr.slice(0, 7); // YYYY-MM (current month)
+      const year = todayStr.slice(0, 4); // YYYY (current year)
       const [s, pg, pc, cr, se, d, m] = await Promise.all([
         api.getSiteSummary(solarCode),
         api.getPowerGeneration24h(solarCode, date),
         api.getPowerConsumption24h(solarCode, date),
         api.getCarbonReduction24h(solarCode, date),
         api.getSolarEnergy24h(solarCode, date),
-        api.getDaily(solarCode),
-        api.getMonthly(solarCode),
+        api.getDaily(solarCode, month),
+        api.getMonthly(solarCode, year),
       ]);
       setSummary(s?.data ?? null);
       setPowerGen(unwrap(pg));
@@ -317,11 +331,11 @@ export default function SolarDashboardPage({ solarCode, onBack }) {
   // ── 24h power chart ────────────────────────────────────────────────────
   const powerChartData = useMemo(
     () => ({
-      labels: powerGen.map((r) => r.label ?? ""),
+      labels: powerGen.map(pickLabel),
       datasets: [
         {
           label: "Power Generation (W)",
-          data: powerGen.map((r) => Number(r.power_w) || 0), // null -> 0
+          data: powerGen.map((r) => pickValue(r, POWER_KEYS)), // null -> 0
           borderColor: "#FFC107",
           backgroundColor: "rgba(255,193,7,0.1)",
           borderWidth: 3,
@@ -344,16 +358,16 @@ export default function SolarDashboardPage({ solarCode, onBack }) {
     interaction: { mode: "nearest", intersect: true },
     plugins: {
       legend: { labels: { color: CH.legend } },
-      tooltip: { callbacks: { label: (ctx) => `Load: ${fmt2(ctx.parsed.y)} W` } },
+      tooltip: { callbacks: { label: (ctx) => `Load: ${ctx.parsed.y} W` } },
     },
     scales: {
       x: {
         grid: { color: CH.grid },
-        ticks: { color: CH.tick, maxTicksLimit: 12, maxRotation: 0 },
+        ticks: { color: CH.tick, maxTicksLimit: 24, maxRotation: 0 },
       },
       y: {
         grid: { color: CH.grid },
-        ticks: { color: CH.tick, callback: (v) => fmt2(v) },
+        ticks: { color: CH.tick },
         beginAtZero: true,
         suggestedMax: summary?.panel_capacity_w || undefined,
       },
@@ -387,16 +401,16 @@ export default function SolarDashboardPage({ solarCode, onBack }) {
     interaction: { mode: "nearest", intersect: true },
     plugins: {
       legend: { labels: { color: CH.legend } },
-      tooltip: { callbacks: { label: (ctx) => `${tipName}: ${fmt2(ctx.parsed.y)} ${unit}` } },
+      tooltip: { callbacks: { label: (ctx) => `${tipName}: ${ctx.parsed.y} ${unit}` } },
     },
     scales: {
       x: {
         grid: { color: CH.grid },
-        ticks: { color: CH.tick, maxTicksLimit: 12, maxRotation: 0 },
+        ticks: { color: CH.tick, maxTicksLimit: 24, maxRotation: 0 },
       },
       y: {
         grid: { color: CH.grid },
-        ticks: { color: CH.tick, callback: (v) => fmt2(v) },
+        ticks: { color: CH.tick },
         beginAtZero: true,
       },
     },
@@ -417,8 +431,8 @@ export default function SolarDashboardPage({ solarCode, onBack }) {
   const consRows = useMemo(
     () =>
       powerCons.map((r) => ({
-        label: r.hour_label ?? "",
-        minutes: toMinSec(r.duration_seconds),
+        label: pickLabel(r), // "label": "1 PM"
+        time: r.consumption_time ?? 0,
         load: Number(r.load_w) || 0, // null -> 0
         status: r.status ?? 0,
       })),
@@ -456,8 +470,8 @@ export default function SolarDashboardPage({ solarCode, onBack }) {
           label: (ctx) => {
             const row = consRows[ctx.dataIndex];
             return [
-              `Load: ${fmt2(row?.load ?? 0)} W`,
-              `Time: ${(row?.minutes ?? 0).toFixed(2)} min`,
+              `Load: ${row?.load ?? 0} W`,
+              `Time: ${row?.time ?? 0}`,
               `Status: ${row?.status ?? 0}`,
             ];
           },
@@ -467,11 +481,11 @@ export default function SolarDashboardPage({ solarCode, onBack }) {
     scales: {
       x: {
         grid: { color: CH.grid },
-        ticks: { color: CH.tick, maxTicksLimit: 12, maxRotation: 0 },
+        ticks: { color: CH.tick, maxTicksLimit: 24, maxRotation: 0 },
       },
       y: {
         grid: { color: CH.grid },
-        ticks: { color: CH.tick, callback: (v) => fmt2(v) },
+        ticks: { color: CH.tick },
         beginAtZero: true,
         title: { display: true, text: "Load (W)", color: CH.tick },
       },
@@ -518,7 +532,7 @@ export default function SolarDashboardPage({ solarCode, onBack }) {
       tooltip: {
         callbacks: {
           label: (ctx) =>
-            ctx.parsed.y.toFixed(2) +
+            ctx.parsed.y +
             " kWh" +
             (ctx.dataIndex === todayIndex ? " (Today)" : ""),
         },
@@ -531,7 +545,7 @@ export default function SolarDashboardPage({ solarCode, onBack }) {
           color: (ctx) => (ctx.index === todayIndex ? "#FFC107" : C.tick),
         },
       },
-      y: { grid: { color: C.grid }, ticks: { color: C.tick, callback: (v) => fmt2(v) } },
+      y: { grid: { color: C.grid }, ticks: { color: C.tick } },
     },
   };
 
@@ -560,12 +574,12 @@ export default function SolarDashboardPage({ solarCode, onBack }) {
     plugins: {
       legend: { labels: { color: C.legend } },
       tooltip: {
-        callbacks: { label: (ctx) => `${ctx.dataset.label}: ${fmt2(ctx.parsed.y)}` },
+        callbacks: { label: (ctx) => `${ctx.dataset.label}: ${ctx.parsed.y}` },
       },
     },
     scales: {
       x: { grid: { color: C.grid }, ticks: { color: C.tick } },
-      y: { grid: { color: C.grid }, ticks: { color: C.tick, callback: (v) => fmt2(v) } },
+      y: { grid: { color: C.grid }, ticks: { color: C.tick } },
     },
   };
 
@@ -586,7 +600,7 @@ export default function SolarDashboardPage({ solarCode, onBack }) {
     { label: "PSU 1", status: summary?.psu1 },
     { label: "PSU 2", status: summary?.psu2 },
     { label: "Operator", value: summary?.operator ?? "—" },
-    { label: "Signal Strength", value: withUnit(summary?.signal_strength) },
+    { label: "Signal Strength", value: withUnit(summary?.signal_strength, "%", "") },
     { label: "Active", value: summary?.active ?? "—" },
     { label: "Server 1", status: summary?.server1 },
     { label: "Server 2", status: summary?.server2 },
@@ -605,11 +619,14 @@ export default function SolarDashboardPage({ solarCode, onBack }) {
               <button className="sp-back" onClick={onBack}>
                 <Icon name="back" /> Back
               </button>
-              <h1 className="sp-title">{siteTitle}</h1>
+              <div className="sp-titlebox">
+                <h1 className="sp-title">{siteTitle}</h1>
+                <div className="sp-code">{summary?.solar_code || solarCode}</div>
+              </div>
               <span className={`sp-pill ${online ? "on" : "off"}`}>
                 {online ? "ONLINE" : "OFFLINE"}
               </span>
-              <SmallBattery pct={pct} />
+              <SmallBattery pct={pct} text={summary?.soc_percent} />
               <span className="sp-refresh">
                 <span className="sp-dot" />
                 Refresh in <b>{countdown}s</b>
@@ -663,7 +680,7 @@ export default function SolarDashboardPage({ solarCode, onBack }) {
                       </div>
                     </div>
                     <div className="card-value power" id="current-power">
-                      {formatPower(summary?.current_power_w)}
+                      {withUnit(summary?.current_power_w, "W")}
                     </div>
                   </div>
                   <div className="card">
@@ -674,7 +691,7 @@ export default function SolarDashboardPage({ solarCode, onBack }) {
                       </div>
                     </div>
                     <div className="card-value sun" id="today-energy">
-                      {formatNum(summary?.today_energy_kwh)} kWh
+                      {exact3(summary?.today_energy_kwh)} kWh
                     </div>
                   </div>
                   <div className="card">
@@ -685,7 +702,7 @@ export default function SolarDashboardPage({ solarCode, onBack }) {
                       </div>
                     </div>
                     <div className="card-value leaf" id="carbon-reduction">
-                      {formatNum(summary?.today_co2_kg)} kg
+                      {exact3(summary?.today_co2_kg)} kg
                     </div>
                   </div>
                   <div className="card">
@@ -696,7 +713,18 @@ export default function SolarDashboardPage({ solarCode, onBack }) {
                       </div>
                     </div>
                     <div className="card-value money" id="today-revenue">
-                      {formatNum(summary?.today_revenue)} ৳
+                      {exact3(summary?.today_revenue)} ৳
+                    </div>
+                  </div>
+                  <div className="card">
+                    <div className="card-header">
+                      <div className="card-title">Current Load</div>
+                      <div className="card-icon load">
+                        <Icon name="activity" />
+                      </div>
+                    </div>
+                    <div className="card-value load" id="current-load">
+                      {withUnit(summary?.load_w, "W")}
                     </div>
                   </div>
                 </div>
@@ -842,16 +870,18 @@ const OVERRIDE_CSS = `
 .solar-page.sp main { padding: 20px 24px; border-left: none; min-width: 0; }
 .solar-page.sp .container { width: 100%; max-width: 100%; min-width: 0; }
 .solar-page.sp .dashboard-grid {
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 16px; margin-bottom: 20px;
 }
 .solar-page.sp .dashboard-grid .card { padding: 20px 18px; }
-.solar-page.sp .dashboard-grid .card-value { font-size: clamp(1.5rem, 2vw, 2.4rem); }
+.solar-page.sp .dashboard-grid .card-value { font-size: clamp(1.3rem, 1.7vw, 2.2rem); }
 .solar-page.sp .dashboard-grid > * { min-width: 0; }
 
 /* icons (inline svg) */
 .solar-page.sp .sp-ico { width: 1em; height: 1em; flex-shrink: 0; display: block; }
 .solar-page.sp .card-icon { font-size: 1.7rem; }
+.solar-page.sp .load { color: var(--red); }
+.solar-page.sp .card-icon.load { background: rgba(252, 92, 101, 0.1); }
 .solar-page.sp .card-icon .sp-ico { width: 1.7rem; height: 1.7rem; }
 .solar-page.sp .chart-title .sp-ico { width: 1.6rem; height: 1.6rem; color: #ffc107; }
 .solar-page.sp #todayDateDisplay .sp-ico { width: 1rem; height: 1rem; color: #ffc107; }
@@ -869,6 +899,11 @@ const OVERRIDE_CSS = `
 }
 .solar-page.sp .sp-back:hover { background: #334155; color: #fff; }
 .solar-page.sp .sp-back .sp-ico { width: 1rem; height: 1rem; }
+.solar-page.sp .sp-titlebox { display: flex; flex-direction: column; line-height: 1.2; }
+.solar-page.sp .sp-code {
+  font-size: 0.75rem; color: rgba(34,211,238,0.7);
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+}
 .solar-page.sp .sp-title { font-size: 1.5rem; font-weight: 700; color: #fff; }
 .solar-page.sp .sp-pill {
   font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 999px;
