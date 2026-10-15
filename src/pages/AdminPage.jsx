@@ -45,7 +45,7 @@ const FIELD_GROUPS = [
   // { title: "Battery", fields: ["batt_empty_volt", "batt_full_volt", "batt_nominal_volt", "batt_capacity_ah"] },
   // { title: "Load & Panels", fields: ["load_watt", "panel_capacity_w"] },
   { title: "Solar Panel", fields: ["solar_panel_voltage", "solar_panel_watt"] },
-  { title: "Battery", fields: ["battery_voltage", "battery_capacity"] },
+  { title: "Battery", fields: ["battery_voltage", "battery_capacity", "battery_current_offset"] },
   { title: "Rates", fields: ["carbon_factor", "unit_rate"] },
 ];
 
@@ -54,6 +54,7 @@ const FIELD_LABELS = {
   solar_panel_watt: "Panel Capacity (W)",
   battery_voltage: "Battery Voltage (V)",
   battery_capacity: "Battery Capacity (AH)",
+  battery_current_offset: "Battery Current Offset",
   carbon_factor: "Carbon Factor",
   unit_rate: "Unit Rate",
 };

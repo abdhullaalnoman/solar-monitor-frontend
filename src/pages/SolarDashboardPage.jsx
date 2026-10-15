@@ -271,7 +271,8 @@ export default function SolarDashboardPage({ solarCode, onBack }) {
   const [error, setError] = useState("");
   const [syncedAt, setSyncedAt] = useState(null);
   const [countdown, setCountdown] = useState(30);
-  const [chartType, setChartType] = useState("energy"); // energy | revenue | carbon
+  const [chartType, setChartType] = useState("carbon"); // energy | revenue | carbon
+  const [dayChart, setDayChart] = useState("carbon"); // carbon | energy | power (last 24 hours)
 
   const fetchAll = useCallback(async () => {
     try {
@@ -553,7 +554,7 @@ export default function SolarDashboardPage({ solarCode, onBack }) {
   const monthlyCfg = {
     energy: { label: "Energy (kWh)", key: "energy_kwh", bg: "#fa8500f3" },
     revenue: { label: "Revenue (Tk)", key: "revenue", bg: "#4ecdc4" },
-    carbon: { label: "Carbon (kg)", key: "co2_kg", bg: "#2196F3" },
+    carbon: { label: "Carbon (kg)", key: "co2_kg", bg: "#4caf50" },
   };
   const cfg = monthlyCfg[chartType];
 
@@ -586,6 +587,32 @@ export default function SolarDashboardPage({ solarCode, onBack }) {
   const btnStyle = (type) =>
     chartType === type
       ? { backgroundColor: monthlyCfg[type].bg, color: "black" }
+      : { backgroundColor: "#1e293b", color: "#cbd5e1" };
+
+  // last 24 hours: one chart, three buttons
+  const dayCfg = {
+    carbon: {
+      label: "Carbon Reduction (kg)",
+      color: "#4caf50",
+      data: carbonChartData,
+      options: carbonChartOptions,
+    },
+    energy: {
+      label: "Energy (kWh)",
+      color: "#ff9800",
+      data: energyChartData,
+      options: energyChartOptions,
+    },
+    power: {
+      label: "Revenue (৳)",
+      color: "#FFC107",
+      data: powerChartData,
+      options: powerChartOptions,
+    },
+  };
+  const dayBtnStyle = (type) =>
+    dayChart === type
+      ? { backgroundColor: dayCfg[type].color, color: "black" }
       : { backgroundColor: "#1e293b", color: "#cbd5e1" };
 
   const siteTitle = summary?.solar_name || summary?.solar_code || solarCode;
@@ -729,45 +756,71 @@ export default function SolarDashboardPage({ solarCode, onBack }) {
                   </div>
                 </div>
 
-                {/* carbon reduction + solar energy: full row each */}
-                <div className="chart-card">
+                {/* monthly bar with toggle */}
+                <div className="bar-chart-container">
                   <div className="chart-title">
-                    <Icon name="leaf" />
-                    Carbon Emission Reduction (Last 24 Hours)
+                    <Icon name="bar" />
+                    Monthly Energy & Financial Summary
+                  </div>
+                  <div className="chart-selector">
+                    <button
+                      className={`chart-btn ${chartType === "carbon" ? "active" : ""}`}
+                      style={btnStyle("carbon")}
+                      onClick={() => setChartType("carbon")}
+                    >
+                      Carbon Reduction (kg)
+                    </button>
+                    <button
+                      className={`chart-btn ${chartType === "energy" ? "active" : ""}`}
+                      style={btnStyle("energy")}
+                      onClick={() => setChartType("energy")}
+                    >
+                      Energy (kWh)
+                    </button>
+                    <button
+                      className={`chart-btn ${chartType === "revenue" ? "active" : ""}`}
+                      style={btnStyle("revenue")}
+                      onClick={() => setChartType("revenue")}
+                    >
+                      Revenue (৳)
+                    </button>
                   </div>
                   <div className="chart-container">
-                    <Line data={carbonChartData} options={carbonChartOptions} />
-                  </div>
-                </div>
-                <div className="chart-card">
-                  <div className="chart-title">
-                    <Icon name="sun" />
-                    Solar Energy (Last 24 Hours)
-                  </div>
-                  <div className="chart-container">
-                    <Line data={energyChartData} options={energyChartOptions} />
+                    <Bar data={monthlyChartData} options={monthlyChartOptions} />
                   </div>
                 </div>
 
-                {/* generation + consumption: half row each */}
-                <div className="sp-halfrow">
-                  <div className="chart-card">
-                    <div className="chart-title">
-                      <Icon name="line" />
-                      Power Generation (Last 24 Hours)
-                    </div>
-                    <div className="chart-container">
-                      <Line data={powerChartData} options={powerChartOptions} />
-                    </div>
+                {/* last 24 hours: carbon / solar energy / power generation (one chart, 3 buttons) */}
+                <div className="bar-chart-container">
+                  <div className="chart-title">
+                    <Icon name="line" />
+                    Last 24 Hours Summary
                   </div>
-                  <div className="chart-card">
-                    <div className="chart-title">
-                      <Icon name="line" />
-                      Power Consumption (Last 24 Hours)
-                    </div>
-                    <div className="chart-container">
-                      <Line data={consChartData} options={consChartOptions} />
-                    </div>
+                  <div className="chart-selector">
+                    {["carbon", "energy", "power"].map((type) => (
+                      <button
+                        key={type}
+                        className={`chart-btn ${dayChart === type ? "active" : ""}`}
+                        style={dayBtnStyle(type)}
+                        onClick={() => setDayChart(type)}
+                      >
+                        {dayCfg[type].label}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="chart-container">
+                    <Line key={dayChart} data={dayCfg[dayChart].data} options={dayCfg[dayChart].options} />
+                  </div>
+                </div>
+
+                {/* power consumption: full row */}
+                <div className="chart-card">
+                  <div className="chart-title">
+                    <Icon name="line" />
+                    Power Consumption (Last 24 Hours)
+                  </div>
+                  <div className="chart-container">
+                    <Line data={consChartData} options={consChartOptions} />
                   </div>
                 </div>
 
@@ -789,40 +842,6 @@ export default function SolarDashboardPage({ solarCode, onBack }) {
                   </div>
                   <div className="chart-container">
                     <Line data={dailyChartData} options={dailyChartOptions} />
-                  </div>
-                </div>
-
-                {/* monthly bar with toggle */}
-                <div className="bar-chart-container">
-                  <div className="chart-title">
-                    <Icon name="bar" />
-                    Monthly Energy & Financial Summary
-                  </div>
-                  <div className="chart-selector">
-                    <button
-                      className={`chart-btn ${chartType === "energy" ? "active" : ""}`}
-                      style={btnStyle("energy")}
-                      onClick={() => setChartType("energy")}
-                    >
-                      Energy (kWh)
-                    </button>
-                    <button
-                      className={`chart-btn ${chartType === "revenue" ? "active" : ""}`}
-                      style={btnStyle("revenue")}
-                      onClick={() => setChartType("revenue")}
-                    >
-                      Revenue (৳)
-                    </button>
-                    <button
-                      className={`chart-btn ${chartType === "carbon" ? "active" : ""}`}
-                      style={btnStyle("carbon")}
-                      onClick={() => setChartType("carbon")}
-                    >
-                      Carbon Reduction (kg)
-                    </button>
-                  </div>
-                  <div className="chart-container">
-                    <Bar data={monthlyChartData} options={monthlyChartOptions} />
                   </div>
                 </div>
 
